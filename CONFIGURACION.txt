@@ -1,0 +1,517 @@
+═══════════════════════════════════════════════════════════════════
+   CLÍNICA DENTAL BUC - GUÍA DE CONFIGURACIÓN
+═══════════════════════════════════════════════════════════════════
+
+Este archivo te guiará paso a paso para poner el proyecto en marcha.
+
+
+───────────────────────────────────────────────────────────────────
+ÍNDICE
+───────────────────────────────────────────────────────────────────
+
+  1. Requisitos previos
+  2. Instalar dependencias del proyecto
+  3. Crear cuenta y proyecto en Supabase
+  4. Ejecutar el script SQL (instalación nueva)
+  4b. Si ya tenías el proyecto antes: aplicar migraciones
+  5. Crear el archivo .env.local con tus credenciales
+  6. Crear el usuario super admin
+  7. Crear los accesos para los especialistas
+  8. Levantar el proyecto en local
+  9. Configurar Google Calendar (opcional)
+  10. Subir imágenes de la clínica
+  11. Despliegue en producción (Vercel)
+  12. Cómo funciona el flujo de WhatsApp manual
+  13. Estructura del proyecto
+  14. URLs principales y roles
+  15. Solución de problemas comunes
+
+
+───────────────────────────────────────────────────────────────────
+1. REQUISITOS PREVIOS
+───────────────────────────────────────────────────────────────────
+
+Antes de arrancar, asegúrate de tener instalado:
+
+  • Node.js 20 o superior  →  https://nodejs.org/
+  • npm (viene con Node)
+  • Git (opcional pero recomendado)
+  • Una cuenta gratuita en Supabase  →  https://supabase.com
+  • Una cuenta en Vercel (para producción)  →  https://vercel.com
+
+
+───────────────────────────────────────────────────────────────────
+2. INSTALAR DEPENDENCIAS DEL PROYECTO
+───────────────────────────────────────────────────────────────────
+
+Abre la terminal en la carpeta del proyecto y ejecuta:
+
+    cd "C:\Users\Santiago Martinez\OneDrive\Escritorio\clinica-dental-buc"
+    npm install
+
+Esto descarga todas las librerías necesarias. Tarda ~1-2 minutos.
+
+
+───────────────────────────────────────────────────────────────────
+3. CREAR CUENTA Y PROYECTO EN SUPABASE
+───────────────────────────────────────────────────────────────────
+
+Si ya lo hiciste antes, salta al paso 4b.
+
+  1. Ve a https://supabase.com y crea una cuenta gratuita
+  2. Haz clic en "New Project"
+  3. Llena los datos:
+       - Name: clinica-dental-buc
+       - Database Password: GENERA UNA CONTRASEÑA FUERTE Y GUÁRDALA
+       - Region: South America (São Paulo) o la más cercana
+       - Pricing Plan: Free
+  4. Espera 1-2 minutos a que se cree el proyecto
+
+
+───────────────────────────────────────────────────────────────────
+4. EJECUTAR EL SCRIPT SQL (instalación nueva)
+───────────────────────────────────────────────────────────────────
+
+  1. En el panel de Supabase, ve a "SQL Editor"
+  2. Abre el archivo del proyecto: supabase/schema.sql
+  3. Copia TODO el contenido y pégalo en el SQL Editor
+  4. Haz clic en "Run" (Ctrl+Enter)
+  5. Debe decir "Success. No rows returned"
+
+Esto crea todas las tablas e inserta los datos iniciales:
+  • La clínica con su WhatsApp, dirección y mapa
+  • Las 6 especialidades
+  • Los 4 especialistas
+  • Los tratamientos por defecto
+  • Los horarios estándar
+  • La tabla user_roles (auth multi-rol)
+
+
+───────────────────────────────────────────────────────────────────
+4b. SI YA TENÍAS EL PROYECTO ANTES: APLICAR MIGRACIÓN
+───────────────────────────────────────────────────────────────────
+
+Si tu base de datos ya estaba creada con una versión anterior,
+NO vuelvas a correr schema.sql. En su lugar:
+
+  1. Abre el archivo: supabase/migrations/001_multi_auth_and_confirmation.sql
+  2. Copia TODO el contenido
+  3. Pégalo en el SQL Editor de Supabase y ejecútalo
+
+Esto añade la tabla user_roles, el campo confirmation_sent en
+appointments, y rellena los datos de contacto del centro
+(WhatsApp, dirección, URL del mapa) si estaban vacíos.
+
+
+───────────────────────────────────────────────────────────────────
+5. CREAR EL ARCHIVO .env.local CON TUS CREDENCIALES
+───────────────────────────────────────────────────────────────────
+
+  1. En Supabase ve a:  Settings  →  API
+  2. Copia los valores:
+        - Project URL
+        - anon / public key
+        - service_role / secret key  (¡secreto!)
+
+  3. En la raíz del proyecto crea un archivo llamado ".env.local"
+     con este contenido:
+
+        NEXT_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+        NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
+        SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key
+
+        NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+        # Google Calendar (opcional - paso 9)
+        GOOGLE_CLIENT_ID=
+        GOOGLE_CLIENT_SECRET=
+        GOOGLE_REDIRECT_URI=http://localhost:3000/api/google-calendar/callback
+
+  IMPORTANTE: NUNCA compartas SUPABASE_SERVICE_ROLE_KEY ni subas
+  el archivo .env.local a Git (ya está en .gitignore).
+
+
+───────────────────────────────────────────────────────────────────
+6. CREAR EL USUARIO SUPER ADMIN
+───────────────────────────────────────────────────────────────────
+
+El super admin es quien gestiona TODO: especialistas,
+tratamientos, horarios, configuración general y todas las citas.
+
+  1. En Supabase, ve a:  Authentication  →  Users
+  2. Haz clic en "Add user"  →  "Create new user"
+  3. Llena:
+        - Email:    administracion@clinicabuc.com (o el que quieras)
+        - Password: una contraseña segura
+        - Auto Confirm User: SÍ (marca la casilla)
+  4. Haz clic en "Create user"
+
+  5. AHORA TIENES QUE ASIGNARLE EL ROL super_admin.
+     Ve a SQL Editor y corre este script (cambia el email):
+
+        INSERT INTO user_roles (user_id, role)
+        SELECT id, 'super_admin' FROM auth.users
+        WHERE email = 'administracion@clinicabuc.com'
+        ON CONFLICT (user_id) DO UPDATE SET role = 'super_admin';
+
+     Si no haces este paso, NO PODRÁS ENTRAR al panel admin.
+
+
+───────────────────────────────────────────────────────────────────
+7. CREAR LOS ACCESOS PARA LOS ESPECIALISTAS
+───────────────────────────────────────────────────────────────────
+
+Cada especialista tendrá su propio usuario para entrar a su
+portal personal. Los accesos los crea el super admin desde:
+
+      /admin/especialistas
+
+  1. Inicia sesión con el super admin en /admin/login
+  2. Ve a "Especialistas" en el menú lateral
+  3. En cada tarjeta de especialista verás un botón:
+        "Crear acceso al portal"
+  4. Haz clic, ingresa el email y contraseña del especialista
+  5. Listo: ese especialista ya puede entrar a /admin/login
+     y será redirigido automáticamente a /especialista
+
+Más tarde puedes:
+  • Cambiar la contraseña de un especialista (botón en su tarjeta)
+  • Quitarle el acceso (botón "Quitar acceso" en el modal)
+
+
+───────────────────────────────────────────────────────────────────
+8. LEVANTAR EL PROYECTO EN LOCAL
+───────────────────────────────────────────────────────────────────
+
+En la terminal del proyecto:
+
+    npm run dev
+
+Espera unos segundos hasta ver:
+
+    ▲ Next.js 16.x.x
+    - Local:        http://localhost:3000
+
+Abre el navegador en  http://localhost:3000
+
+Para detener el servidor: Ctrl+C en la terminal.
+
+
+───────────────────────────────────────────────────────────────────
+9. CONFIGURAR GOOGLE CALENDAR (opcional)
+───────────────────────────────────────────────────────────────────
+
+Si quieres que las citas se sincronicen automáticamente con el
+Google Calendar de cada especialista, sigue esta sección. Si NO
+te interesa, salta al paso 10.
+
+PASO A: Crear proyecto en Google Cloud Console
+─────────────────────────────────────────────────────────────
+
+  1. Entra a  https://console.cloud.google.com/
+  2. Crea un proyecto nuevo (ej: "Clinica Dental Buc")
+  3. Menú lateral:  APIs y servicios → Biblioteca
+  4. Busca "Google Calendar API" y haz clic en "Habilitar"
+
+PASO B: Configurar la pantalla de consentimiento OAuth
+─────────────────────────────────────────────────────────────
+
+  1. Ve a:  APIs y servicios → Pantalla de consentimiento OAuth
+  2. Tipo de usuario: "Externo" → Crear
+  3. Llena:
+        - Nombre de la app:        Clínica Dental Buc
+        - Email de soporte:        tu correo
+  4. En "Permisos" agrega los scopes:
+        - .../auth/calendar.events
+        - .../auth/calendar.readonly
+  5. En "Usuarios de prueba" agrega los emails de los
+     especialistas que conectarán su calendario
+
+PASO C: Crear credenciales OAuth 2.0
+─────────────────────────────────────────────────────────────
+
+  1. APIs y servicios → Credenciales
+  2. "Crear credenciales" → "ID de cliente OAuth"
+  3. Tipo: "Aplicación web"
+  4. URIs de redirección autorizados:
+        - LOCAL:      http://localhost:3000/api/google-calendar/callback
+        - PRODUCCIÓN: https://tu-dominio.com/api/google-calendar/callback
+  5. Crea y copia el Client ID y Client Secret
+
+PASO D: Pega las credenciales en .env.local
+─────────────────────────────────────────────────────────────
+
+        GOOGLE_CLIENT_ID=el-client-id
+        GOOGLE_CLIENT_SECRET=el-client-secret
+        GOOGLE_REDIRECT_URI=http://localhost:3000/api/google-calendar/callback
+
+  Reinicia el servidor: npm run dev
+
+PASO E: Conectar el calendario de cada especialista
+─────────────────────────────────────────────────────────────
+
+  1. Inicia sesión como super admin en  /admin/login
+  2. Ve a /admin/especialistas
+  3. En cada tarjeta verás el botón "Conectar Google Calendar"
+  4. Al hacer clic se redirige a Google para autorizar
+  5. El especialista debe iniciar sesión con SU cuenta y aceptar
+
+
+───────────────────────────────────────────────────────────────────
+10. SUBIR IMÁGENES DE LA CLÍNICA
+───────────────────────────────────────────────────────────────────
+
+La landing pública tiene secciones de:
+  • Galería de servicios (implantes, ortodoncia, estética,
+    endodoncia, diseño de sonrisa)
+  • Testimonios con foto
+  • Fotos de los profesionales
+
+Coloca las imágenes en la carpeta:
+
+      public/img/
+
+Hay un README con la estructura exacta:
+
+      public/img/README.txt
+
+Resumen rápido:
+  • /public/img/logo/                 → logo de la clínica
+  • /public/img/profesionales/        → fotos de doctores
+  • /public/img/servicios/{cat}/X.jpg → galería (1.jpg ... 6.jpg)
+  • /public/img/testimonios/          → 1.jpg, 2.jpg, 3.jpg
+
+Si una imagen no existe, se muestra un placeholder gris en
+su lugar (la app no se rompe).
+
+
+───────────────────────────────────────────────────────────────────
+11. DESPLIEGUE EN PRODUCCIÓN (VERCEL)
+───────────────────────────────────────────────────────────────────
+
+  1. Sube el proyecto a GitHub:
+       git init
+       git add .
+       git commit -m "Initial commit"
+       git remote add origin https://github.com/tu-usuario/repo.git
+       git push -u origin main
+
+  2. En Vercel:  https://vercel.com  → "Add New Project"
+       a. Importa el repo
+       b. En "Environment Variables" agrega TODAS las variables
+          del .env.local
+       c. NEXT_PUBLIC_APP_URL = la URL de Vercel (ej:
+          https://clinica-buc.vercel.app)
+       d. Si configuraste Google Calendar, cambia
+          GOOGLE_REDIRECT_URI a la URL de producción
+          y agrégala en Google Cloud Console como URI autorizado
+       e. "Deploy"
+
+
+───────────────────────────────────────────────────────────────────
+12. CÓMO FUNCIONA EL FLUJO DE WHATSAPP MANUAL
+───────────────────────────────────────────────────────────────────
+
+La app NO envía mensajes automáticos. Cada mensaje lo envía el
+especialista (o el super admin) manualmente con un solo clic.
+
+CITA NUEVA (sombreado azul + botón "Enviar confirmación")
+─────────────────────────────────────────────────────────────
+
+  1. Un cliente agenda una cita en /clinica/buc/agendar
+  2. La cita aparece sombreada en azul en el portal del
+     especialista (/especialista/citas) y en el panel admin
+     (/admin/reservas)
+  3. Aparece un botón "Enviar confirmación"
+  4. Al hacer clic:
+       a. Se abre WhatsApp con el mensaje prellenado
+       b. El especialista revisa y da "Enviar"
+       c. La app marca la cita como confirmada y el sombreado
+          azul desaparece
+
+CITA PARA MAÑANA (sombreado ámbar + botón "Enviar recordatorio")
+─────────────────────────────────────────────────────────────
+
+  1. Cuando faltan menos de ~30 horas para la cita, aparece
+     un sombreado ámbar y un botón "Enviar recordatorio"
+  2. Funciona igual: clic → WhatsApp → enviar → marcado
+
+PERSONALIZAR EL MENSAJE
+─────────────────────────────────────────────────────────────
+
+  Las plantillas (formales) están en:  lib/whatsapp.ts
+
+  Puedes editar buildConfirmationText() y buildReminderText()
+  para cambiar el tono o la información incluida.
+
+
+───────────────────────────────────────────────────────────────────
+13. ESTRUCTURA DEL PROYECTO
+───────────────────────────────────────────────────────────────────
+
+  clinica-dental-buc/
+  │
+  ├── app/                          ← Páginas (Next.js App Router)
+  │   ├── page.tsx                  ← Redirect a /clinica/buc
+  │   ├── layout.tsx                ← Layout raíz
+  │   │
+  │   ├── clinica/[slug]/
+  │   │   ├── page.tsx              ← Landing pública
+  │   │   └── agendar/page.tsx      ← Flujo de reserva
+  │   │
+  │   ├── admin/                    ← Panel del SUPER ADMIN
+  │   │   ├── login/page.tsx        ← Login (común a todos los roles)
+  │   │   ├── page.tsx              ← Dashboard
+  │   │   ├── reservas/page.tsx     ← Todas las citas
+  │   │   ├── especialistas/page.tsx
+  │   │   ├── tratamientos/page.tsx
+  │   │   ├── horarios/page.tsx
+  │   │   └── configuracion/page.tsx
+  │   │
+  │   ├── especialista/             ← Portal del ESPECIALISTA
+  │   │   ├── page.tsx              ← Dashboard personal
+  │   │   ├── citas/page.tsx        ← Mis citas (CRUD)
+  │   │   └── configuracion/page.tsx ← Editar mi perfil
+  │   │
+  │   └── api/
+  │       ├── appointments/
+  │       │   ├── route.ts                          ← POST público (cliente)
+  │       │   └── [id]/
+  │       │       ├── route.ts                       ← PATCH/DELETE
+  │       │       ├── mark-confirmation-sent/route.ts
+  │       │       └── mark-reminder-sent/route.ts
+  │       ├── availability/route.ts
+  │       ├── auth/post-login/route.ts              ← Redirige según rol
+  │       ├── especialista/
+  │       │   ├── appointments/route.ts             ← Crear (especialista)
+  │       │   ├── appointments/[id]/route.ts        ← Editar (especialista)
+  │       │   ├── profile/route.ts                  ← Editar mi perfil
+  │       │   └── password/route.ts                 ← Cambiar contraseña
+  │       ├── admin/
+  │       │   └── specialist-credentials/route.ts   ← Crear/eliminar usuarios
+  │       └── google-calendar/
+  │           ├── authorize/route.ts
+  │           ├── callback/route.ts
+  │           └── disconnect/route.ts
+  │
+  ├── components/
+  │   ├── ui/                       ← Botones, cards, badges
+  │   ├── public/                   ← Hero, equipo, galería, mapa
+  │   ├── booking/                  ← Componentes del flujo
+  │   ├── admin/                    ← Sidebar, tablas, formularios
+  │   └── especialista/             ← Dashboard, citas, perfil
+  │
+  ├── lib/
+  │   ├── types.ts                  ← Tipos TypeScript
+  │   ├── auth.ts                   ← Helpers de roles
+  │   ├── availability.ts           ← Lógica de slots
+  │   ├── whatsapp.ts               ← Templates wa.me
+  │   ├── google-calendar.ts        ← Integración Calendar
+  │   └── supabase/
+  │       ├── client.ts             ← Cliente browser
+  │       └── server.ts             ← Cliente server
+  │
+  ├── public/img/                   ← Imágenes de la clínica
+  ├── supabase/
+  │   ├── schema.sql                ← Script SQL completo
+  │   └── migrations/
+  │       └── 001_multi_auth_and_confirmation.sql
+  │
+  ├── middleware.ts                 ← Auth de rutas protegidas
+  ├── .env.local                    ← TUS credenciales (no subir)
+  └── package.json
+
+
+───────────────────────────────────────────────────────────────────
+14. URLs PRINCIPALES Y ROLES
+───────────────────────────────────────────────────────────────────
+
+PÚBLICAS (clientes):
+  /                               → Redirect a la landing
+  /clinica/buc                    → Landing principal
+  /clinica/buc/agendar            → Flujo de reserva (2 caminos)
+
+ROLES Y RUTAS:
+  /admin/login                    → Login común para TODOS los usuarios
+
+Tras iniciar sesión, la app redirige automáticamente:
+
+  • Super admin → /admin
+      - Dashboard global
+      - Gestionar especialistas (crear/editar/eliminar + accesos)
+      - Gestionar tratamientos
+      - Gestionar horarios
+      - Ver TODAS las citas
+      - Configuración de la empresa
+
+  • Especialista → /especialista
+      - Dashboard personal (sus stats)
+      - SUS citas (crear/editar/eliminar SOLO suyas)
+      - Editar su perfil y contraseña
+      - NO puede ver citas de otros especialistas
+      - NO puede gestionar otros especialistas
+
+
+───────────────────────────────────────────────────────────────────
+15. SOLUCIÓN DE PROBLEMAS COMUNES
+───────────────────────────────────────────────────────────────────
+
+PROBLEMA: "Tu usuario no tiene un rol asignado" al iniciar sesión
+SOLUCIÓN: El usuario en auth.users no tiene una fila en
+         user_roles. Si es el super admin, ejecuta el INSERT
+         del paso 6. Si es un especialista, créalo desde
+         /admin/especialistas → "Crear acceso al portal".
+
+PROBLEMA: "Error al cargar disponibilidad"
+SOLUCIÓN: Verifica que el especialista tenga horarios
+         configurados en /admin/horarios.
+
+PROBLEMA: El build falla con "Module not found"
+SOLUCIÓN: Ejecuta:
+            rm -rf node_modules .next
+            npm install
+
+PROBLEMA: Las citas no se crean (error 409)
+SOLUCIÓN: Significa que el horario fue tomado por otro
+         paciente. Es protección contra doble reserva.
+
+PROBLEMA: No aparecen las imágenes de la galería
+SOLUCIÓN: Coloca las imágenes en public/img/servicios/...
+         (ver paso 10 y public/img/README.txt). Si no existen,
+         la app muestra placeholders grises.
+
+PROBLEMA: El especialista no ve sus citas
+SOLUCIÓN: Verifica en Supabase que la fila de user_roles tenga
+         specialist_id correcto apuntando al especialista
+         correspondiente.
+
+PROBLEMA: "Error 400: redirect_uri_mismatch" con Google Calendar
+SOLUCIÓN: El URI en Google Cloud Console no coincide con el de
+         la app. Asegúrate que ambos sean idénticos.
+
+
+───────────────────────────────────────────────────────────────────
+COMANDOS ÚTILES
+───────────────────────────────────────────────────────────────────
+
+  npm run dev      ← Servidor de desarrollo
+  npm run build    ← Compilar para producción
+  npm run start    ← Servidor de producción
+  npm run lint     ← Verificar errores de código
+
+
+═══════════════════════════════════════════════════════════════════
+NOTAS FINALES
+═══════════════════════════════════════════════════════════════════
+
+  • Zona horaria por defecto: America/Bogota
+  • Moneda: COP (pesos colombianos)
+  • WhatsApp: envío MANUAL (el especialista hace clic en el botón
+    y luego envía desde su WhatsApp Web)
+  • Urgencias: se manejan FUERA de la app (contacto directo)
+  • Planes/suscripciones: NO están implementados (se manejan
+    presencialmente con cada especialista)
+  • Recordatorios: aparecen en la app cuando faltan menos de
+    ~30h para la cita (no se envían automáticamente)
+
+═══════════════════════════════════════════════════════════════════
