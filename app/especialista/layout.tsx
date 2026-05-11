@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Stethoscope, LayoutDashboard, Calendar, Settings, LogOut } from "lucide-react";
+import { Stethoscope, LayoutDashboard, Calendar, Settings } from "lucide-react";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { LogoutButton } from "@/components/especialista/LogoutButton";
@@ -21,19 +21,21 @@ export default async function EspecialistaLayout({
   if (!me) {
     redirect("/admin/login?error=no_role");
   }
-  if (me.role === "super_admin") {
-    redirect("/admin");
-  }
-  if (me.role !== "specialist" || !me.specialistId) {
+  if (me.role !== "specialist" && me.role !== "super_admin") {
     redirect("/admin/login");
   }
 
   const admin = createSupabaseAdminClient();
-  const { data: specialist } = await admin
-    .from("specialists")
-    .select("name, title, photo_url")
-    .eq("id", me.specialistId)
-    .single();
+  const { data: specialist } = me.role === "specialist" && me.specialistId
+    ? await admin
+        .from("specialists")
+        .select("name, title, photo_url")
+        .eq("id", me.specialistId)
+        .single()
+    : { data: null };
+
+  const headerName = me.role === "super_admin" ? "Super Admin" : specialist?.name || "Especialista";
+  const headerTitle = me.role === "super_admin" ? "Clínica Dental Buc" : specialist?.title || "Clínica Dental Buc";
 
   return (
     <div className="min-h-screen bg-bg-secondary">
@@ -44,8 +46,8 @@ export default async function EspecialistaLayout({
               <Stethoscope className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0 hidden sm:block">
-              <p className="font-bold text-text-primary text-sm truncate">{specialist?.name || "Especialista"}</p>
-              <p className="text-xs text-text-muted truncate">{specialist?.title || "Clínica Dental Buc"}</p>
+              <p className="font-bold text-text-primary text-sm truncate">{headerName}</p>
+              <p className="text-xs text-text-muted truncate">{headerTitle}</p>
             </div>
           </Link>
           <nav className="flex items-center gap-1">

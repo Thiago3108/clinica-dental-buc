@@ -22,21 +22,21 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const me = await getCurrentUser();
-  if (!me || me.role !== "specialist" || !me.specialistId) {
+  if (!me || (me.role !== "specialist" && me.role !== "super_admin")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   const { id } = await params;
   const supabase = createSupabaseAdminClient();
 
-  // Verificar que la cita pertenece al especialista
+    // Verificar que la cita pertenece al especialista, salvo super admin
   const { data: prev } = await supabase
     .from("appointments")
     .select("specialist_id, patient_id")
     .eq("id", id)
     .single();
 
-  if (!prev || prev.specialist_id !== me.specialistId) {
+    if (!prev || (me.role === "specialist" && prev.specialist_id !== me.specialistId)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -45,10 +45,12 @@ export async function PUT(
     const data = updateSchema.parse(body);
 
     // Verificar conflicto con otras citas (excluyendo esta)
+    const targetSpecialistId = me.role === "super_admin" ? prev.specialist_id : me.specialistId;
+
     const { data: existing } = await supabase
       .from("appointments")
       .select("id")
-      .eq("specialist_id", me.specialistId)
+      .eq("specialist_id", targetSpecialistId)
       .neq("status", "cancelled")
       .neq("id", id)
       .or(`and(start_time.lt.${data.endTime},end_time.gt.${data.startTime})`)

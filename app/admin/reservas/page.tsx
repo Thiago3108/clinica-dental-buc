@@ -34,7 +34,7 @@ export default async function AdminReservasPage() {
 
       <AppointmentsTable
         appointments={(appointments || []) as never}
-        centerName={center?.name || "Clínica Dental Buc"}
+        centerName="Dr. Jonny Contreras"
         centerAddress={center?.address || null}
         timezone={center?.timezone || "America/Bogota"}
       />

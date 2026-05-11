@@ -1,22 +1,30 @@
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { requireSpecialist } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { SpecialistAppointments } from "@/components/especialista/SpecialistAppointments";
 import type { Treatment } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function CitasPage() {
-  const me = await requireSpecialist();
+  const me = await getCurrentUser();
   if (!me) redirect("/admin/login");
 
   const supabase = createSupabaseAdminClient();
 
-  const { data: specialist } = await supabase
-    .from("specialists")
-    .select("id, name, dental_center_id")
-    .eq("id", me.specialistId)
-    .single();
+  const { data: specialist } = me.role === "super_admin"
+    ? await supabase
+        .from("specialists")
+        .select("id, name, dental_center_id")
+        .eq("is_active", true)
+        .order("sort_order")
+        .limit(1)
+        .single()
+    : await supabase
+        .from("specialists")
+        .select("id, name, dental_center_id")
+        .eq("id", me.specialistId)
+        .single();
 
   if (!specialist) return <div>Especialista no encontrado</div>;
 
@@ -48,7 +56,7 @@ export default async function CitasPage() {
     <SpecialistAppointments
       specialistId={specialist.id}
       specialistName={specialist.name}
-      centerName={centerRes.data?.name || "Clínica Dental Buc"}
+      centerName="Dr. Jonny Contreras"
       centerAddress={centerRes.data?.address || null}
       timezone={centerRes.data?.timezone || "America/Bogota"}
       appointments={(appointmentsRes.data || []) as never}

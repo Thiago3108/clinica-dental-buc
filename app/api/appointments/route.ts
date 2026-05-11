@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
         `Tratamiento: ${treatmentName}`,
         data.reason ? `Motivo: ${data.reason}` : null,
         "",
-        "Cita generada por Clínica Dental Buc",
+        "Cita generada por Dr. Jonny Contreras",
       ].filter(Boolean);
 
       createCalendarEvent({

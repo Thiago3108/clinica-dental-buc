@@ -21,7 +21,7 @@ const createSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const me = await getCurrentUser();
-  if (!me || me.role !== "specialist" || !me.specialistId) {
+  if (!me || (me.role !== "specialist" && me.role !== "super_admin")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createSchema.parse(body);
 
-    // El especialista solo puede crear citas para sí mismo
-    if (data.specialistId !== me.specialistId) {
+    // El especialista solo puede crear citas para sí mismo; el super admin puede crear para cualquier especialista.
+    if (me.role === "specialist" && data.specialistId !== me.specialistId) {
       return NextResponse.json({ error: "No puedes crear citas de otro especialista" }, { status: 403 });
     }
 
