@@ -1,8 +1,33 @@
 import Link from "next/link";
-import { Calendar, MessageCircle, Star, ArrowRight, ShieldCheck } from "lucide-react";
+import { Calendar, MessageCircle, Star, ArrowRight, ShieldCheck, MapPin, Clock3 } from "lucide-react";
 import type { DentalCenter } from "@/lib/types";
+import type { WeeklyHour } from "@/lib/business-hours";
+import { groupConsecutiveHours } from "@/lib/business-hours";
 
-export function HeroSection({ center }: { center: DentalCenter }) {
+type Props = {
+  center: DentalCenter;
+  weeklyHours?: WeeklyHour[];
+};
+
+function buildCompactHours(weeklyHours: WeeklyHour[] | undefined): string {
+  if (!weeklyHours || weeklyHours.length === 0) {
+    return "Lun a Vie: 8 AM - 6 PM";
+  }
+  const groups = groupConsecutiveHours(weeklyHours).filter((g) => !g.closed);
+  if (groups.length === 0) return "Consulta horarios";
+  // Tomamos hasta 2 grupos para no saturar
+  return groups
+    .slice(0, 2)
+    .map((g) => `${g.label}: ${g.hours}`)
+    .join(" · ");
+}
+
+function buildShortLocation(address: string | null | undefined): string {
+  if (!address) return "Cl 52A #31-67, Sotomayor";
+  return "Cl 52A #31-67, Sotomayor";
+}
+
+export function HeroSection({ center, weeklyHours }: Props) {
   const waPhone = (center.whatsapp || center.phone || "").replace(/\D/g, "");
   const waMessage = encodeURIComponent(
     `Hola, me gustaría agendar una cita en ${center.name}.`,
@@ -10,6 +35,8 @@ export function HeroSection({ center }: { center: DentalCenter }) {
   const waUrl = waPhone
     ? `https://api.whatsapp.com/send?phone=${waPhone}&text=${waMessage}`
     : null;
+  const locationText = buildShortLocation(center.address);
+  const hoursText = buildCompactHours(weeklyHours);
 
   return (
     <section className="relative overflow-hidden bg-bg-navy text-white">
@@ -23,7 +50,14 @@ export function HeroSection({ center }: { center: DentalCenter }) {
         }}
         aria-hidden
       />
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-dark via-primary-dark/95 to-primary/80" aria-hidden />
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(to bottom right, rgba(16, 42, 74, 1), rgba(16, 42, 74, 0.95), rgba(30, 109, 181, 0.8))",
+        }}
+        aria-hidden
+      />
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -56,7 +90,14 @@ export function HeroSection({ center }: { center: DentalCenter }) {
               Tu sonrisa,
               <br />
               transformada por
-              <span className="block bg-gradient-to-r from-white via-accent to-primary-light bg-clip-text text-transparent">
+              <span
+                className="block text-transparent"
+                style={{
+                  backgroundImage: "linear-gradient(to right, #ffffff, var(--accent), var(--primary-light))",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                }}
+              >
                 especialistas
               </span>
             </h1>
@@ -72,10 +113,11 @@ export function HeroSection({ center }: { center: DentalCenter }) {
                   href={waUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe57] text-white font-semibold px-6 py-3.5 rounded-xl transition-all shadow-lg shadow-black/20 hover:scale-[1.02]"
+                  className="inline-flex items-center justify-center gap-2 text-white font-semibold px-6 py-3.5 rounded-xl transition-all shadow-lg shadow-black/20 hover:scale-[1.02]"
+                  style={{ backgroundColor: "#25D366" }}
                 >
                   <MessageCircle className="w-5 h-5" fill="currentColor" />
-                  Agenda por WhatsApp
+                  Contactar por WhatsApp
                 </a>
               ) : null}
               <Link
@@ -94,14 +136,30 @@ export function HeroSection({ center }: { center: DentalCenter }) {
               </a>
             </div>
 
-            <div className="pt-4 flex items-center gap-6 text-sm text-white/70">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-accent" />
+            <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-white/75">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-accent" />
+                </div>
                 <span>Especialistas certificados</span>
               </div>
-              <div className="hidden sm:flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-accent" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-accent" />
+                </div>
                 <span>Bioseguridad garantizada</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 flex items-center justify-center shrink-0">
+                  <MapPin className="w-4 h-4 text-accent" />
+                </div>
+                <span className="truncate">{locationText}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 flex items-center justify-center shrink-0">
+                  <Clock3 className="w-4 h-4 text-accent" />
+                </div>
+                <span className="truncate">{hoursText}</span>
               </div>
             </div>
           </div>
@@ -109,8 +167,10 @@ export function HeroSection({ center }: { center: DentalCenter }) {
           {/* Right side: floating image with stats */}
           <div className="lg:col-span-5 relative">
             <div
-              className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-gradient-to-br from-white/10 to-white/5 border border-white/15 shadow-2xl"
+              className="relative rounded-3xl overflow-hidden border border-white/15 shadow-2xl"
               style={{
+                aspectRatio: "4 / 5",
+                backgroundColor: "rgba(255,255,255,0.08)",
                 backgroundImage: "url(/img/hero/clinica.png)",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
@@ -126,7 +186,12 @@ export function HeroSection({ center }: { center: DentalCenter }) {
                 }}
                 aria-hidden
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.40), transparent, transparent)",
+                }}
+              />
             </div>
 
             {/* Floating stats card */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Stethoscope, Mail, Lock, Loader2 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -12,12 +12,34 @@ export default function AdminLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    // Si el navegador conserva una sesión rota, la limpiamos para evitar
+    // el error espurio de refresh token al intentar iniciar sesión.
+    void supabase.auth
+      .getSession()
+      .catch(() => null)
+      .then(async (result) => {
+        if (!result?.data.session) {
+          return;
+        }
+
+        try {
+          await supabase.auth.signOut({ scope: "local" });
+        } catch {
+          // Si falla, no bloqueamos la pantalla de login.
+        }
+      });
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut({ scope: "local" }).catch(() => null);
     const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,

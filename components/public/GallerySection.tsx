@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, AlignCenter, Bluetooth, Syringe, Smile, ImageIcon } from "lucide-react";
+import { Sparkles, AlignCenter, Stethoscope, Syringe, Smile, ImageIcon } from "lucide-react";
 
 type Category = {
   key: string;
@@ -40,7 +40,7 @@ const CATEGORIES: Category[] = [
   {
     key: "endodoncia",
     label: "Endodoncia",
-    icon: Bluetooth,
+    icon: Stethoscope,
     description: "Tratamientos de conducto con tecnología avanzada",
     images: ["/img/servicios/endodoncia/image.png"],
   },
@@ -147,13 +147,6 @@ export function GallerySection() {
           </div>
         )}
 
-        <p className="text-center text-xs text-text-muted mt-8">
-          Para agregar más imágenes a una categoría, edita el array{" "}
-          <code className="bg-white px-1.5 py-0.5 rounded">images</code> en{" "}
-          <code className="bg-white px-1.5 py-0.5 rounded">
-            components/public/GallerySection.tsx
-          </code>
-        </p>
       </div>
     </section>
   );

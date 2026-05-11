@@ -7,10 +7,10 @@ import { SpecialtiesSection } from "@/components/public/SpecialtiesSection";
 import { WhyChooseUsSection } from "@/components/public/WhyChooseUsSection";
 import { TeamSection } from "@/components/public/TeamSection";
 import { GallerySection } from "@/components/public/GallerySection";
-import { TestimonialsSection } from "@/components/public/TestimonialsSection";
 import { LocationSection } from "@/components/public/LocationSection";
 import { PublicFooter } from "@/components/public/PublicFooter";
 import { FloatingWhatsApp } from "@/components/public/FloatingWhatsApp";
+import { computeWeeklyHours } from "@/lib/business-hours";
 import type { SpecialistWithSpecialties } from "@/lib/types";
 
 export default async function PublicLandingPage({
@@ -57,18 +57,28 @@ export default async function PublicLandingPage({
     }),
   ) as SpecialistWithSpecialties[];
 
+  // Horarios consolidados de la clínica desde la BD
+  const specialistIds = specialists.map((s) => s.id);
+  const { data: workingHours } = specialistIds.length > 0
+    ? await supabase
+        .from("specialist_working_hours")
+        .select("day_of_week, start_time, end_time, is_active")
+        .in("specialist_id", specialistIds)
+    : { data: [] };
+
+  const weeklyHours = computeWeeklyHours(workingHours || []);
+
   return (
     <>
       <PublicHeader center={center} />
       <main className="flex-1">
-        <HeroSection center={center} />
+        <HeroSection center={center} weeklyHours={weeklyHours} />
         <StatsSection />
         <SpecialtiesSection specialties={specialtiesRes.data || []} />
         <WhyChooseUsSection />
         <TeamSection specialists={specialists} />
         <GallerySection />
-        <TestimonialsSection />
-        <LocationSection center={center} />
+        <LocationSection center={center} weeklyHours={weeklyHours} />
       </main>
       <PublicFooter center={center} />
       {center.whatsapp && (

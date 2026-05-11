@@ -1,22 +1,41 @@
 import { MapPin, Phone, Mail, Instagram, ExternalLink, Clock, MessageCircle } from "lucide-react";
 import type { DentalCenter } from "@/lib/types";
+import type { WeeklyHour } from "@/lib/business-hours";
+import { groupConsecutiveHours } from "@/lib/business-hours";
 
 const FULL_MAPS_URL =
   "https://www.google.com/maps/place/Dr+Jhonny+Contreras/@7.1124369,-73.1140894,17z/data=!4m6!3m5!1s0x8e683fceeb93197d:0x3c479dd9fde73073!8m2!3d7.1124369!4d-73.1115091!16s%2Fg%2F11y3qb6mhq";
 
-const SCHEDULE = [
-  { day: "Lunes - Viernes", hours: "8:00 AM - 7:00 PM" },
-  { day: "Sábado", hours: "8:00 AM - 2:00 PM" },
-  { day: "Domingo", hours: "Cerrado", closed: true },
-];
+type Props = {
+  center: DentalCenter;
+  weeklyHours?: WeeklyHour[];
+};
 
-export function LocationSection({ center }: { center: DentalCenter }) {
+function buildScheduleRows(weeklyHours?: WeeklyHour[]) {
+  if (!weeklyHours || weeklyHours.length === 0) {
+    return [
+      { day: "Lunes - Viernes", hours: "8:00 AM - 7:00 PM" },
+      { day: "Sábado", hours: "8:00 AM - 2:00 PM" },
+      { day: "Domingo", hours: "Cerrado", closed: true },
+    ];
+  }
+
+  const grouped = groupConsecutiveHours(weeklyHours);
+  return grouped.map((item) => ({
+    day: item.label,
+    hours: item.hours,
+    closed: item.closed,
+  }));
+}
+
+export function LocationSection({ center, weeklyHours }: Props) {
   const waPhone = (center.whatsapp || center.phone || "").replace(/\D/g, "");
   const waUrl = waPhone
     ? `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(
         `Hola, me gustaría agendar una cita en ${center.name}.`,
       )}`
     : null;
+  const scheduleRows = buildScheduleRows(weeklyHours);
 
   return (
     <section id="ubicacion" className="py-20 sm:py-24 bg-bg-secondary">
@@ -35,7 +54,7 @@ export function LocationSection({ center }: { center: DentalCenter }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Mapa */}
-          <div className="lg:col-span-3 rounded-3xl overflow-hidden border border-border min-h-[400px] lg:min-h-[520px] bg-white shadow-sm">
+          <div className="lg:col-span-3 rounded-3xl overflow-hidden border border-border min-h-100 lg:min-h-130 bg-white shadow-sm">
             {center.google_maps_url ? (
               <iframe
                 src={center.google_maps_url}
@@ -48,7 +67,7 @@ export function LocationSection({ center }: { center: DentalCenter }) {
                 title="Ubicación Clínica Dental Buc"
               />
             ) : (
-              <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-bg-soft-blue/40">
+              <div className="w-full h-full min-h-100 flex items-center justify-center bg-bg-soft-blue/40">
                 <MapPin className="w-16 h-16 text-primary/30" />
               </div>
             )}
@@ -57,13 +76,13 @@ export function LocationSection({ center }: { center: DentalCenter }) {
           {/* Info */}
           <div className="lg:col-span-2 space-y-4">
             {/* Horarios destacados */}
-            <div className="bg-gradient-to-br from-primary to-primary-dark text-white rounded-3xl p-6 shadow-xl shadow-primary/20">
+            <div className="bg-linear-to-br from-primary to-primary-dark text-white rounded-3xl p-6 shadow-xl shadow-primary/20">
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="w-5 h-5" />
                 <h3 className="font-bold text-lg">Horario de atención</h3>
               </div>
               <ul className="space-y-2.5">
-                {SCHEDULE.map((s, idx) => (
+                {scheduleRows.map((s, idx) => (
                   <li
                     key={idx}
                     className="flex items-center justify-between pb-2.5 border-b border-white/15 last:border-0 last:pb-0"
@@ -157,7 +176,7 @@ export function LocationSection({ center }: { center: DentalCenter }) {
                   href={waUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-[#25D366] hover:bg-[#1ebe57] text-white rounded-2xl p-4 transition-all flex items-center gap-3 shadow-md"
+                  className="bg-whatsapp hover:bg-[#1ebe57] text-white rounded-2xl p-4 transition-all flex items-center gap-3 shadow-md"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                     <MessageCircle className="w-5 h-5" fill="currentColor" />

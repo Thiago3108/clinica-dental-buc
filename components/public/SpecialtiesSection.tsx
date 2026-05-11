@@ -1,8 +1,8 @@
-import { Bluetooth, Sparkles, Shield, AlignCenter, Bone, Syringe, ArrowUpRight } from "lucide-react";
+import { Stethoscope, Sparkles, Shield, AlignCenter, Bone, Syringe, ArrowUpRight } from "lucide-react";
 import type { Specialty } from "@/lib/types";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  tooth: Bluetooth,
+  tooth: Stethoscope,
   sparkles: Sparkles,
   shield: Shield,
   "align-center": AlignCenter,
@@ -37,7 +37,7 @@ export function SpecialtiesSection({ specialties }: { specialties: Specialty[] }
                 className={[
                   "group relative rounded-3xl p-7 border transition-all duration-300 overflow-hidden",
                   isFeatured
-                    ? "bg-gradient-to-br from-primary to-primary-dark text-white border-primary"
+                    ? "bg-primary-dark text-white border-primary"
                     : "bg-white border-border hover:border-primary hover:shadow-xl hover:shadow-primary/5",
                 ].join(" ")}
               >
