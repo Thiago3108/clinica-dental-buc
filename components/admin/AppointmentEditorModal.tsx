@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Loader2, X } from "lucide-react";
@@ -35,10 +35,8 @@ const STATUS_OPTIONS: Array<{ value: AppointmentStatus; label: string }> = [
   { value: "no_show", label: "No asistió" },
 ];
 
-export function AppointmentEditorModal({ appointment, treatments, timezone, onClose, onSaved }: Props) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
+function buildInitialForm(appointment: EditableAppointment | null, treatments: Treatment[]) {
+  return {
     patientName: appointment?.patient?.name || "",
     patientPhone: appointment?.patient?.phone || "",
     patientEmail: appointment?.patient?.email || "",
@@ -49,26 +47,17 @@ export function AppointmentEditorModal({ appointment, treatments, timezone, onCl
     isFirstVisit: appointment?.is_first_visit || false,
     reason: appointment?.reason || "",
     notes: appointment?.notes || "",
-  });
+  };
+}
 
-  useEffect(() => {
-    setForm({
-      patientName: appointment?.patient?.name || "",
-      patientPhone: appointment?.patient?.phone || "",
-      patientEmail: appointment?.patient?.email || "",
-      treatmentId: appointment?.treatment_id || treatments[0]?.id || "",
-      startDate: appointment ? format(new Date(appointment.start_time), "yyyy-MM-dd") : "",
-      startTime: appointment ? format(new Date(appointment.start_time), "HH:mm") : "",
-      status: appointment?.status || "confirmed",
-      isFirstVisit: appointment?.is_first_visit || false,
-      reason: appointment?.reason || "",
-      notes: appointment?.notes || "",
-    });
-    setError(null);
-  }, [appointment, treatments]);
+export function AppointmentEditorModal({ appointment, treatments, timezone, onClose, onSaved }: Props) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState(() => buildInitialForm(appointment, treatments));
 
   if (!appointment) return null;
 
+  const appointmentId = appointment.id;
   const selectedTreatment = treatments.find((t) => t.id === form.treatmentId);
 
   async function handleSave() {
@@ -96,7 +85,7 @@ export function AppointmentEditorModal({ appointment, treatments, timezone, onCl
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/appointments/${appointment.id}`, {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

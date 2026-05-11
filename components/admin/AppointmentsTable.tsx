@@ -555,6 +555,7 @@ export function AppointmentsTable({
       )}
 
       <AppointmentEditorModal
+        key={editing?.id || "appointment-editor-empty"}
         appointment={editing}
         treatments={treatments}
         timezone={timezone}
