@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Phone, CheckCircle2, XCircle, MessageSquare, Bell, Plus, Pencil, Trash2,
-  Loader2, X
+  Loader2, X, Search
 } from "lucide-react";
 import { format, startOfDay, endOfDay, addDays, isAfter, differenceInHours } from "date-fns";
 import { es } from "date-fns/locale";
@@ -54,11 +54,17 @@ export function SpecialistAppointments({
 }: Props) {
   const router = useRouter();
   const [filter, setFilter] = useState<"today" | "week" | "upcoming" | "all">("upcoming");
+  const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
+  const [followUpFilter, setFollowUpFilter] = useState<"all" | "unconfirmed" | "reminder_pending" | "reminded">("all");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<AppointmentRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const filtered = useMemo(() => filterAppointments(appointments, filter), [appointments, filter]);
+  const periodFiltered = useMemo(() => filterAppointments(appointments, filter), [appointments, filter]);
 
   function formatLocal(iso: string, fmt: string) {
     return format(toZonedTime(new Date(iso), timezone), fmt, { locale: es });
@@ -162,6 +168,70 @@ export function SpecialistAppointments({
     return hours >= 0 && hours <= 30; // dentro de las próximas 30h
   }
 
+  const serviceOptions = useMemo(() => {
+    return Array.from(new Set(appointments.map((apt) => apt.treatment?.name).filter(Boolean))) as string[];
+  }, [appointments]);
+
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return periodFiltered.filter((apt) => {
+      if (dateFrom) {
+        const from = new Date(`${dateFrom}T00:00:00`);
+        if (new Date(apt.start_time) < from) return false;
+      }
+
+      if (dateTo) {
+        const to = new Date(`${dateTo}T23:59:59`);
+        if (new Date(apt.start_time) > to) return false;
+      }
+
+      if (serviceFilter !== "all" && (apt.treatment?.name || "") !== serviceFilter) {
+        return false;
+      }
+
+      if (statusFilter !== "all" && apt.status !== statusFilter) {
+        return false;
+      }
+
+      if (followUpFilter === "unconfirmed" && apt.confirmation_sent) {
+        return false;
+      }
+      if (followUpFilter === "reminder_pending" && !needsReminder(apt)) {
+        return false;
+      }
+      if (followUpFilter === "reminded" && !apt.reminder_sent) {
+        return false;
+      }
+
+      if (!normalizedQuery) return true;
+
+      const searchable = [
+        apt.patient?.name,
+        apt.patient?.phone,
+        apt.patient?.email,
+        apt.treatment?.name,
+        apt.reason,
+        apt.notes,
+        formatLocal(apt.start_time, "d MMM yyyy"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(normalizedQuery);
+    });
+  }, [periodFiltered, query, dateFrom, dateTo, serviceFilter, statusFilter, followUpFilter]);
+
+  function clearFilters() {
+    setQuery("");
+    setDateFrom("");
+    setDateTo("");
+    setServiceFilter("all");
+    setStatusFilter("all");
+    setFollowUpFilter("all");
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -193,6 +263,81 @@ export function SpecialistAppointments({
         ))}
       </div>
 
+      <div className="bg-white border border-border rounded-xl p-3 sm:p-4 space-y-3">
+        <div className="relative">
+          <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por paciente, teléfono, servicio, motivo o fecha"
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+            aria-label="Fecha inicial"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+            aria-label="Fecha final"
+          />
+          <select
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Todos los servicios</option>
+            {serviceOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | "all")}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="pending">Pendiente</option>
+            <option value="confirmed">Confirmada</option>
+            <option value="completed">Completada</option>
+            <option value="cancelled">Cancelada</option>
+            <option value="no_show">No asistió</option>
+          </select>
+          <select
+            value={followUpFilter}
+            onChange={(e) => setFollowUpFilter(e.target.value as "all" | "unconfirmed" | "reminder_pending" | "reminded")}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Seguimiento: todos</option>
+            <option value="unconfirmed">Sin confirmación</option>
+            <option value="reminder_pending">Falta recordatorio</option>
+            <option value="reminded">Recordatorio enviado</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
+          <span>
+            Mostrando {filtered.length} de {periodFiltered.length} citas del período
+          </span>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-white hover:bg-bg-secondary"
+          >
+            <X className="w-3.5 h-3.5" /> Limpiar filtros
+          </button>
+        </div>
+      </div>
+
       <div className="bg-bg-soft-blue/40 border border-primary/20 rounded-xl p-3 text-xs text-text-secondary leading-relaxed">
         <strong className="text-primary">Sombreado azul:</strong> cita nueva sin confirmar &middot;{" "}
         <strong className="text-amber-700">Sombreado ámbar:</strong> cita mañana sin recordatorio enviado
@@ -201,7 +346,7 @@ export function SpecialistAppointments({
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <div className="bg-white border border-border rounded-2xl p-12 text-center text-text-muted">
-            No hay citas en este período
+            No hay citas que coincidan con los filtros aplicados
           </div>
         ) : (
           filtered.map((apt) => {

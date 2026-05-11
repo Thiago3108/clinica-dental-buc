@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, differenceInHours } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { es } from "date-fns/locale";
-import { Bell, Calendar, Clock, Loader2, MessageSquare, Pencil, Trash2, User } from "lucide-react";
+import { Bell, Calendar, Clock, Loader2, MessageSquare, Pencil, Search, Trash2, User, X } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { AppointmentEditorModal } from "./AppointmentEditorModal";
 import {
@@ -65,6 +65,13 @@ export function AppointmentsTable({
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminAppointment | null>(null);
+  const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [specialistFilter, setSpecialistFilter] = useState("all");
+  const [serviceFilter, setServiceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
+  const [followUpFilter, setFollowUpFilter] = useState<"all" | "unconfirmed" | "reminder_pending" | "reminded">("all");
 
   function formatLocal(iso: string, fmt: string) {
     return format(toZonedTime(new Date(iso), timezone), fmt, { locale: es });
@@ -75,6 +82,89 @@ export function AppointmentsTable({
     const start = new Date(apt.start_time);
     const hours = differenceInHours(start, new Date());
     return hours >= 0 && hours <= 30;
+  }
+
+  const specialistOptions = useMemo(() => {
+    return Array.from(new Set(appointments.map((apt) => apt.specialist?.name).filter(Boolean))) as string[];
+  }, [appointments]);
+
+  const serviceOptions = useMemo(() => {
+    return Array.from(new Set(appointments.map((apt) => apt.treatment?.name).filter(Boolean))) as string[];
+  }, [appointments]);
+
+  const filteredAppointments = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return appointments.filter((apt) => {
+      if (dateFrom) {
+        const from = new Date(`${dateFrom}T00:00:00`);
+        if (new Date(apt.start_time) < from) return false;
+      }
+
+      if (dateTo) {
+        const to = new Date(`${dateTo}T23:59:59`);
+        if (new Date(apt.start_time) > to) return false;
+      }
+
+      if (specialistFilter !== "all" && (apt.specialist?.name || "") !== specialistFilter) {
+        return false;
+      }
+
+      if (serviceFilter !== "all" && (apt.treatment?.name || "") !== serviceFilter) {
+        return false;
+      }
+
+      if (statusFilter !== "all" && apt.status !== statusFilter) {
+        return false;
+      }
+
+      if (followUpFilter === "unconfirmed" && apt.confirmation_sent) {
+        return false;
+      }
+      if (followUpFilter === "reminder_pending" && !needsReminder(apt)) {
+        return false;
+      }
+      if (followUpFilter === "reminded" && !apt.reminder_sent) {
+        return false;
+      }
+
+      if (!normalizedQuery) return true;
+
+      const searchable = [
+        apt.patient?.name,
+        apt.patient?.phone,
+        apt.patient?.email,
+        apt.specialist?.name,
+        apt.treatment?.name,
+        apt.reason,
+        apt.notes,
+        formatLocal(apt.start_time, "d MMM yyyy"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(normalizedQuery);
+    });
+  }, [
+    appointments,
+    query,
+    dateFrom,
+    dateTo,
+    specialistFilter,
+    serviceFilter,
+    statusFilter,
+    followUpFilter,
+  ]);
+
+  function clearFilters() {
+    setQuery("");
+    setDateFrom("");
+    setDateTo("");
+    setSpecialistFilter("all");
+    setServiceFilter("all");
+    setStatusFilter("all");
+    setFollowUpFilter("all");
   }
 
   async function updateStatus(id: string, status: AppointmentStatus) {
@@ -222,8 +312,91 @@ export function AppointmentsTable({
 
   return (
     <div className="bg-white border border-border rounded-2xl overflow-hidden">
+      <div className="p-4 sm:p-5 border-b border-border bg-bg-secondary/60 space-y-3">
+        <div className="relative">
+          <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por paciente, teléfono, especialista, servicio o fecha"
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+            aria-label="Fecha inicial"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+            aria-label="Fecha final"
+          />
+          <select
+            value={specialistFilter}
+            onChange={(e) => setSpecialistFilter(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Todos los especialistas</option>
+            {specialistOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          <select
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Todos los servicios</option>
+            {serviceOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | "all")}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Todos los estados</option>
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <select
+            value={followUpFilter}
+            onChange={(e) => setFollowUpFilter(e.target.value as "all" | "unconfirmed" | "reminder_pending" | "reminded")}
+            className="w-full px-3 py-2.5 bg-white border border-border rounded-xl text-sm"
+          >
+            <option value="all">Seguimiento: todos</option>
+            <option value="unconfirmed">Sin confirmación</option>
+            <option value="reminder_pending">Falta recordatorio</option>
+            <option value="reminded">Recordatorio enviado</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
+          <span>
+            Mostrando {filteredAppointments.length} de {appointments.length} citas
+          </span>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-white hover:bg-bg-secondary"
+          >
+            <X className="w-3.5 h-3.5" /> Limpiar filtros
+          </button>
+        </div>
+      </div>
+
       <div className="divide-y divide-border md:hidden">
-        {appointments.map((apt) => {
+        {filteredAppointments.map((apt) => {
           const showConfirm = !apt.confirmation_sent && apt.status !== "cancelled";
           const showReminder = needsReminder(apt);
           const rowClass =
@@ -307,7 +480,7 @@ export function AppointmentsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {appointments.map((apt) => {
+            {filteredAppointments.map((apt) => {
               const showConfirm = !apt.confirmation_sent && apt.status !== "cancelled";
               const showReminder = needsReminder(apt);
               const rowClass =
@@ -374,6 +547,12 @@ export function AppointmentsTable({
           </tbody>
         </table>
       </div>
+
+      {appointments.length > 0 && filteredAppointments.length === 0 && (
+        <div className="px-5 py-10 text-center text-sm text-text-secondary border-t border-border">
+          No hay citas que coincidan con los filtros aplicados.
+        </div>
+      )}
 
       <AppointmentEditorModal
         appointment={editing}
