@@ -15,13 +15,19 @@ export default async function AdminReservasPage() {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(`
-      id, start_time, end_time, status, is_first_visit, reason,
+      id, start_time, end_time, status, is_first_visit, reason, notes, treatment_id,
       confirmation_sent, reminder_sent,
       patient:patients (name, phone, email),
       specialist:specialists (name),
       treatment:treatments (name, duration_minutes)
     `)
     .order("start_time", { ascending: false });
+
+  const { data: treatments } = await supabase
+    .from("treatments")
+    .select("id, dental_center_id, specialty_id, name, description, duration_minutes, price, is_active, sort_order")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
 
   return (
     <div className="space-y-6">
@@ -37,6 +43,7 @@ export default async function AdminReservasPage() {
         centerName="Dr. Jonny Contreras"
         centerAddress={center?.address || null}
         timezone={center?.timezone || "America/Bogota"}
+        treatments={(treatments || []) as never}
       />
     </div>
   );

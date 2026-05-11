@@ -55,7 +55,7 @@ export function AdminSidebar() {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r border-border flex flex-col transition-transform z-40 ${
+        className={`fixed lg:sticky top-0 left-0 h-screen w-[82vw] max-w-sm lg:w-64 bg-white border-r border-border flex flex-col transition-transform z-40 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
