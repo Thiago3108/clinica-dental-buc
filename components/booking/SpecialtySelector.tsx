@@ -1,10 +1,10 @@
 "use client";
 
-import { Bluetooth, Sparkles, Shield, AlignCenter, Bone, Syringe, ChevronRight } from "lucide-react";
+import { Stethoscope, Sparkles, Shield, AlignCenter, Bone, Syringe, ChevronRight } from "lucide-react";
 import type { Specialty } from "@/lib/types";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  tooth: Bluetooth,
+  tooth: Stethoscope,
   sparkles: Sparkles,
   shield: Shield,
   "align-center": AlignCenter,

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { addMonths, format, getDaysInMonth, startOfMonth } from "date-fns";
+import { es } from "date-fns/locale";
 import { StepIndicator } from "@/components/ui/StepIndicator";
 import { PathSelector } from "./PathSelector";
 import { SpecialtySelector } from "./SpecialtySelector";
@@ -38,6 +40,7 @@ export function BookingFlow({
   treatments,
   consultationTreatments,
 }: BookingFlowProps) {
+  const baseMonth = useMemo(() => startOfMonth(new Date()), []);
   const [path, setPath] = useState<Path>(null);
   const [step, setStep] = useState(0);
   const [specialty, setSpecialty] = useState<Specialty | null>(null);
@@ -46,6 +49,7 @@ export function BookingFlow({
   const [days, setDays] = useState<DayAvailability[]>([]);
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<TimeSlot | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [patient, setPatient] = useState<PatientFormData | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -55,20 +59,24 @@ export function BookingFlow({
   const stepsFirstVisit = ["Especialidad", "Especialista", "Fecha", "Hora", "Datos", "Confirmar"];
   const stepsTreatment = ["Especialista", "Tratamiento", "Fecha", "Hora", "Datos", "Confirmar"];
   const steps = path === "first_visit" ? stepsFirstVisit : stepsTreatment;
+  const viewedMonth = addMonths(baseMonth, monthOffset);
+  const monthStartDate = format(viewedMonth, "yyyy-MM-01");
+  const monthOptions = [0, 1, 2].map((offset) => {
+    const optionDate = addMonths(baseMonth, offset);
+    const label = format(optionDate, "MMMM yyyy", { locale: es });
+    return {
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+      active: monthOffset === offset,
+      onSelect: () => handleMonthChange(offset),
+    };
+  });
 
-  useEffect(() => {
-    if (specialist && treatment) {
-      loadAvailability();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specialist?.id, treatment?.id]);
-
-  async function loadAvailability() {
-    if (!specialist || !treatment) return;
+  async function loadAvailability(startDate: string, daysAhead: number, nextSpecialist = specialist, nextTreatment = treatment) {
+    if (!nextSpecialist || !nextTreatment) return;
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/availability?specialistId=${specialist.id}&durationMinutes=${treatment.duration_minutes}&dentalCenterId=${center.id}`
+        `/api/availability?specialistId=${nextSpecialist.id}&durationMinutes=${nextTreatment.duration_minutes}&dentalCenterId=${center.id}&startDate=${startDate}&daysAhead=${daysAhead}`
       );
       const data = await res.json();
       setDays(data.days || []);
@@ -82,6 +90,9 @@ export function BookingFlow({
   function handlePathSelect(p: Path) {
     setPath(p);
     setStep(0);
+    setMonthOffset(0);
+    setDate(null);
+    setSlot(null);
   }
 
   function handleSpecialtySelect(s: Specialty) {
@@ -94,6 +105,12 @@ export function BookingFlow({
       const consultation = consultationTreatments[s.id];
       if (consultation) {
         setTreatment(consultation);
+        void loadAvailability(
+          monthStartDate,
+          getDaysInMonth(viewedMonth),
+          matching[0],
+          consultation
+        );
         setStep(2);
       } else {
         setStep(1);
@@ -109,6 +126,12 @@ export function BookingFlow({
       const consultation = consultationTreatments[specialty.id];
       if (consultation) {
         setTreatment(consultation);
+        void loadAvailability(
+          monthStartDate,
+          getDaysInMonth(viewedMonth),
+          s,
+          consultation
+        );
         setStep(2);
         return;
       }
@@ -123,7 +146,36 @@ export function BookingFlow({
 
   function handleTreatment(t: Treatment) {
     setTreatment(t);
+    void loadAvailability(
+      monthStartDate,
+      getDaysInMonth(viewedMonth),
+      specialist || undefined,
+      t
+    );
     setStep(2);
+  }
+
+  function handleMonthChange(offset: number) {
+    setMonthOffset(offset);
+    setDate(null);
+    setSlot(null);
+    const nextMonth = addMonths(baseMonth, offset);
+    if (specialist && treatment) {
+      void loadAvailability(
+        format(nextMonth, "yyyy-MM-01"),
+        getDaysInMonth(nextMonth),
+        specialist,
+        treatment
+      );
+    }
+  }
+
+  function goPrevMonth() {
+    handleMonthChange((monthOffset + 2) % 3);
+  }
+
+  function goNextMonth() {
+    handleMonthChange((monthOffset + 1) % 3);
   }
 
   function handleDate(d: string) {
@@ -252,6 +304,10 @@ export function BookingFlow({
           selectedDate={date || undefined}
           onSelect={handleDate}
           loading={loading}
+          monthDate={viewedMonth}
+          monthOptions={monthOptions}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
         />
       );
     } else if (step === 3) {
@@ -314,6 +370,10 @@ export function BookingFlow({
           selectedDate={date || undefined}
           onSelect={handleDate}
           loading={loading}
+          monthDate={viewedMonth}
+          monthOptions={monthOptions}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
         />
       );
     } else if (step === 3) {
@@ -359,7 +419,7 @@ export function BookingFlow({
     <div className="space-y-8">
       <StepIndicator steps={steps} currentStep={step} />
 
-      <div className="min-h-[400px]">{stepContent}</div>
+      <div className="min-h-100">{stepContent}</div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">

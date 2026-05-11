@@ -1,5 +1,5 @@
-import { addDays, format, parse, addMinutes, isBefore, isAfter, startOfDay } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { addDays, format, parse, addMinutes, isBefore, isAfter, startOfDay, parseISO } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { createSupabaseAdminClient } from "./supabase/server";
 import type { DayAvailability, TimeSlot } from "./types";
 
@@ -9,7 +9,8 @@ export async function getSpecialistAvailability(
   specialistId: string,
   durationMinutes: number,
   daysAhead: number = 14,
-  timezone: string = "America/Bogota"
+  timezone: string = "America/Bogota",
+  startDate?: string
 ): Promise<DayAvailability[]> {
   const supabase = createSupabaseAdminClient();
 
@@ -35,7 +36,7 @@ export async function getSpecialistAvailability(
   const blockedDates = new Set((blockedRes.data || []).map((b) => b.date));
 
   const now = new Date();
-  const startWindow = startOfDay(now);
+  const startWindow = startDate ? startOfDay(parseISO(startDate)) : startOfDay(now);
   const endWindow = addDays(startWindow, daysAhead + 1);
 
   const { data: appointments } = await supabase

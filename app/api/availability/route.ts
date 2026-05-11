@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
   const specialistId = searchParams.get("specialistId");
   const durationMinutes = Number(searchParams.get("durationMinutes") || 30);
   const dentalCenterId = searchParams.get("dentalCenterId");
+  const startDate = searchParams.get("startDate") || undefined;
+  const daysAhead = Number(searchParams.get("daysAhead") || 14);
 
   if (!specialistId || !dentalCenterId) {
     return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
@@ -25,8 +27,9 @@ export async function GET(request: NextRequest) {
     const days = await getSpecialistAvailability(
       specialistId,
       durationMinutes,
-      14,
-      timezone
+      daysAhead,
+      timezone,
+      startDate
     );
     return NextResponse.json({ days });
   } catch (error) {
